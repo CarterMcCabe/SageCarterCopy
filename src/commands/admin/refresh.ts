@@ -21,7 +21,7 @@ export default class extends Command {
 			const name = dirs[dirs.length - 1].split('.')[0];
 
 			// semi type-guard, typeof returns function for classes
-			if (!(typeof commandModule.default === 'function')) {
+			if (typeof commandModule.default !== 'function') {
 				console.log(`Invalid command ${name}`);
 				continue;
 			}
@@ -32,7 +32,7 @@ export default class extends Command {
 			command.name = name;
 
 			if ((!command.description || command.description.length >= 100 || command.description.length <= 0) && (command.type === ApplicationCommandType.ChatInput)) {
-				throw `Command ${command.name}'s description must be between 1 and 100 characters.`;
+				throw new RangeError(`Command ${command.name}'s description must be between 1 and 100 characters.`);
 			}
 
 			command.category = dirs[dirs.length - 2];
