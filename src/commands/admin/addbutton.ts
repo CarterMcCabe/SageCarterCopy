@@ -67,7 +67,7 @@ export default class extends Command {
 		const [,, channelID, messageID] = match;
 		const message = await interaction.client.channels.fetch(channelID)
 			.then((channel: TextChannel) => channel.messages.fetch(messageID))
-			.catch(() => { throw 'I can\'t seem to find that message'; });
+			.catch(() => { throw new RangeError("I can\'t seem to find that message."); });
 
 		// check if the message can be edited
 		if (!message.editable) {
