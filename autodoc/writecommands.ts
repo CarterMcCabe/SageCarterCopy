@@ -44,7 +44,7 @@ async function main() {
 	for (const file of commandFiles) {
 		const commandModule = await import(file);
 
-		if (!(typeof commandModule.default === 'function')) {
+		if (typeof commandModule.default !== 'function'){
 			console.log(`Invalid command ${file}`);
 			continue;
 		}
