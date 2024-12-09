@@ -37,50 +37,58 @@ commands in staff-only channels.
 
 `;
 
+async function scrapeCommand(file: string, categories: Map<string, string>) {
+	const commandModule = await import(file);
+
+	if (typeof commandModule.default !== 'function') {
+		console.log(`Invalid command ${file}`);
+		return;
+	}
+
+	// eslint-disable-next-line new-cap
+	const command: Command = new commandModule.default;
+
+	// Set command details
+	const dirs = file.split('/');
+	const name = dirs[dirs.length - 1].split('.')[0];
+	command.name = name;
+	command.category = dirs[dirs.length - 2] === 'commands' ? 'general' : dirs[dirs.length - 2];
+
+	if (command.category === 'admin') {
+		return;
+	}
+
+	// Initialize category header if not present
+	if (!categories.has(command.category)) {
+		const formattedCat = command.category
+			.split(' ')
+			.map(word => word[0].toUpperCase() + word.substring(1))
+			.join(' ');
+		categories.set(command.category, `### ${formattedCat} Commands`);
+	}
+
+	// Append command details
+	let newCatText = `${categories.get(command.category)}\n\n**${command.name}**\n`;
+	newCatText += command.description ? `\n- Description: ${command.description}\n` : '';
+	newCatText += command.extendedHelp ? `\n- More info: ${command.extendedHelp}\n` : '';
+	if (command.options) {
+		newCatText += '\n- Parameters:\n';
+		newCatText += command.options
+			.map(
+				param =>
+					`  - ${param.name} (${param.required ? 'required' : 'optional'}): ${param.description}`
+			)
+			.join('\n');
+	}
+	categories.set(command.category, newCatText);
+}
+
 async function main() {
 	const categories = new Map<string, string>();
 
 	const commandFiles = readdirRecursive(`${__dirname}/../src/commands`).filter(file => file.endsWith('.js'));
 	for (const file of commandFiles) {
-		const commandModule = await import(file);
-
-		if (typeof commandModule.default !== 'function'){
-			console.log(`Invalid command ${file}`);
-			continue;
-		}
-
-		// eslint-disable-next-line new-cap
-		const command: Command = new commandModule.default;
-
-		// scrape commands
-		const dirs = file.split('/');
-		const name = dirs[dirs.length - 1].split('.')[0];
-		command.name = name;
-		command.category = dirs[dirs.length - 2] === 'commands' ? 'general' : dirs[dirs.length - 2];
-
-		if (command.category === 'admin') {
-			continue;
-		}
-
-		if (!categories.has(command.category)) {
-			const catWords = command.category.split(' ');
-			const formattedCat = catWords.map(word => word[0].toUpperCase() + word.substring(1)).join(' ');
-			categories.set(command.category, `### ${formattedCat} Commands`);
-		}
-
-		let newCatText = `${categories.get(command.category)}\n\n**${command.name}**\n`;
-
-		newCatText += command.description ? `\n- Description: ${command.description}\n` : ``;
-		newCatText += command.extendedHelp ? `\n- More info: ${command.extendedHelp}\n` : ``;
-		if (command.options) {
-			newCatText += '\n- Parameters:\n';
-			newCatText += command.options.map(param =>
-				// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-				// @ts-ignore: see Note 1 comment block in help.ts
-				`  - ${param.name} (${param.required ? 'required' : 'optional'}): ${param.description}`
-			).join('\n');
-		}
-		categories.set(command.category, newCatText);
+		await scrapeCommand(file, categories);
 	}
 
 	if (categories.get('question tagging')) {
