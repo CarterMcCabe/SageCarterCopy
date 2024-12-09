@@ -148,9 +148,7 @@ export default class extends Command {
 	}
 
 	countdown(interaction: ChatInputCommandInteraction, timeout: number, btns: ButtonBuilder[], baseText: string): void {
-		const extraText = timeout > 1
-			? `Press 'yes' in the next ${timeout} seconds to confirm.`
-			: `Press 'yes' in the next ${timeout} seconds to confirm.`;
+		const extraText = `Press 'yes' in the next ${timeout} seconds to confirm.`;
 		interaction.editReply({ content: baseText +
 		extraText, components: [new ActionRowBuilder<ButtonBuilder>({ components: btns })] });
 	}
