@@ -48,16 +48,21 @@ export default class extends Command {
 		} else if (!max && min) {
 			return interaction.reply({ embeds: [generateErrorEmbed('If you provide a minimum, you must also provide a maximum.')], ephemeral: true });
 		} else if (max < min) {
-			return interaction.reply({ embeds: [generateErrorEmbed('Your maximum must be greater than your minimum.')], ephemeral: true });
-		} if (!Number.isInteger(min) || !Number.isInteger(max)) {
-			return interaction.reply({ embeds: [generateErrorEmbed('The values you entered were not whole numbers. Remember that this command works with integers only.')], ephemeral: true });
-		} if (numRolls < 1 || numRolls > 10 || !Number.isInteger(numRolls)) {
-			return interaction.reply({ embeds: [generateErrorEmbed('You can only roll between 1 and 10 whole dice.')], ephemeral: true });
-		} if (!Number.isInteger(keepHighest) || keepHighest <= 0) {
-			return interaction.reply({ embeds: [generateErrorEmbed('The number of dice you keep must be a **positive integer**.')], ephemeral: true });
-		} if (keepHighest > numRolls) {
-			return interaction.reply({ embeds: [generateErrorEmbed('The number of dice you keep must be lower than the number of dice you roll.')], ephemeral: true });
+			if (max < min) {
+				return interaction.reply({ embeds: [generateErrorEmbed('Your maximum must be greater than your minimum.')], ephemeral: true });
+			} else if (!Number.isInteger(min) || !Number.isInteger(max)) {
+				return interaction.reply({ embeds: [generateErrorEmbed('The values you entered were not whole numbers. Remember that this command works with integers only.')], ephemeral: true });
+			}
+			
+		if (numRolls < 1 || numRolls > 10 || !Number.isInteger(numRolls)) {
+    		return interaction.reply({ embeds: [generateErrorEmbed('You can only roll between 1 and 10 whole dice.')], ephemeral: true });
+				} else if (!Number.isInteger(keepHighest) || keepHighest <= 0) {
+    		return interaction.reply({ embeds: [generateErrorEmbed('The number of dice you keep must be a **positive integer**.')], ephemeral: true });
+					} else if (keepHighest > numRolls) {
+    		return interaction.reply({ embeds: [generateErrorEmbed('The number of dice you keep must be lower than the number of dice you roll.')], ephemeral: true });
+				}
 		}
+
 
 		const results = [];
 		for (let i = 0; i < numRolls; i++) {
