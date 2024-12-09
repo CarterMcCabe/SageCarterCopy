@@ -143,10 +143,8 @@ export default class extends Command {
 					components: [],
 					content: 'Command timed out.'
 				});
-				return;
 			}
 		});
-		return;
 	}
 
 	countdown(interaction: ChatInputCommandInteraction, timeout: number, btns: ButtonBuilder[], baseText: string): void {
