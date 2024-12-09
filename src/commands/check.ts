@@ -34,7 +34,6 @@ export default class extends Command {
 		} else {
 			interaction.reply({ embeds: [embed] });
 		}
-		return;
 	}
 
 	progressBar(value: number, maxValue: number, size: number): string {

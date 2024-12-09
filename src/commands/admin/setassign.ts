@@ -36,7 +36,6 @@ export default class extends Command {
 			await assignables.insertOne(newRole);
 			await updateDropdowns(interaction);
 			interaction.editReply(`The role \`${role.name}\` has been added.`);
-			return;
 		}
 	}
 
