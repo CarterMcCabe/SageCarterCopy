@@ -42,101 +42,142 @@ const mailer = nodemailer.createTransport({
 
 async function main() {
 	const client = await MongoClient.connect(DB.CONNECTION, { useUnifiedTopology: true });
-	const db = client.db(BOT.NAME).collection(DB.USERS);
-	const args = process.argv.slice(2);
-	let emails: Array<string>;
-	let course: Course;
+	try {
+		const db = client.db(BOT.NAME).collection(DB.USERS);
+		const args = process.argv.slice(2);
 
-	if (args.length > 0) {
-		if (args[0].toLowerCase() === 'staff') {
-			emails = args;
-		} else {
-			emails = ['STUDENT', ...args];
-		}
-	} else {
-		const data = fs.readFileSync('./resources/emails.csv');
-		emails = data.toString().split('\n').map(email => email.trim());
-		let courseId: string;
-		[emails[0], courseId] = emails[0].split(',').map(str => str.trim());
-		course = await client.db(BOT.NAME).collection(DB.COURSES).findOne({ name: courseId });
-	}
+		const { emails, isStaff, course } = await initializeEmailsAndCourse(args, client);
 
-	let isStaff: boolean;
+		logHeader();
 
-	if (emails[0].toLowerCase() === 'staff') {
-		isStaff = true;
-	} else if (emails[0].toLowerCase() === 'student') {
-		isStaff = false;
-	} else {
-		console.error('First value must be STAFF or STUDENT');
-		process.exit();
-	}
-
-	emails.shift();
-	console.log(`${'email'.padEnd(18)} | ${'staff'.padEnd(5)} | hash
--------------------------------------------------------------------------`);
-	for (const email of emails) {
-		if (email === '') continue;
-		if (!email.endsWith('@udel.edu')) {
-			console.error(`${email} is not a valid udel email.`);
-			continue;
-		}
-
-		const hash = crypto.createHash('sha256').update(email).digest('base64').toString();
-
-		const entry: SageUser = await db.findOne({ email: email, hash: hash });
-
-		const newUser: SageUser = {
-			email: email,
-			hash: hash,
-			isStaff: isStaff,
-			discordId: '',
-			count: 0,
-			levelExp: FIRST_LEVEL,
-			curExp: FIRST_LEVEL,
-			level: 1,
-			levelPings: true,
-			isVerified: false,
-			pii: false,
-			roles: [],
-			courses: []
-		};
-
-		if (course) {
-			if (isStaff) {
-				newUser.roles.push(course.roles.staff);
-			} else {
-				newUser.roles.push(course.roles.student);
-				newUser.courses.push(course.name);
+		for (const email of emails) {
+			if (email === '' || !isValidEmail(email)) {
+				logInvalidEmail(email);
+				continue;
 			}
-		}
 
-		if (isStaff) {
-			newUser.roles.push(ROLES.STAFF);
-		}
-		newUser.roles.push(ROLES.LEVEL_ONE);
+			const hash = generateHash(email);
+			const entry: SageUser = await db.findOne({ email, hash });
+			const newUser = createNewUser(email, hash, isStaff, course);
 
-		if (entry) {			// User already on-boarded
-			if (isStaff && entry.isVerified) {		// Make staff is not already
-				await db.updateOne(entry, { $set: { isStaff: true } });
-				console.log(`${email} was already in verified. Add staff roles manually. Discord ID ${entry.discordId}`);
-			} else if (isStaff && !entry.isVerified) {
-				await db.updateOne(entry, { $set: { ...newUser } });
+			if (await processExistingUser(entry, isStaff, newUser, db, email)) {
+				continue;
 			}
-			continue;
+
+			await db.insertOne(newUser);
+			logNewUser(email, isStaff, hash);
+
+			sendEmail(email, hash);
+			await sleep(1100);
 		}
-
-		await db.insertOne(newUser);
-
-		console.log(`${email.padEnd(18)} | ${isStaff.toString().padEnd(5)} | ${hash}`);
-
-		sendEmail(email, hash);
-		await sleep(1100);
+	} finally {
+		client.close();
 	}
-
-	client.close();
 }
 
+function logHeader() {
+	console.log(`${'email'.padEnd(18)} | ${'staff'.padEnd(5)} | hash
+-------------------------------------------------------------------------`);
+}
+
+async function initializeEmailsAndCourse(args: string[], client: MongoClient) {
+	let emails: string[] = [];
+	let course: Course | undefined;
+	let isStaff: boolean;
+
+	if (args.length > 0) {
+		({ emails, isStaff } = parseArgs(args));
+	} else {
+		({ emails, course } = await parseEmailFile(client));
+		isStaff = determineStaffStatus(emails[0]);
+	}
+
+	emails.shift(); // Remove staff/student identifier
+	return { emails, isStaff, course };
+}
+
+function parseArgs(args: string[]) {
+	const isStaff = args[0].toLowerCase() === 'staff';
+	const emails = isStaff ? args : ['STUDENT', ...args];
+	return { emails, isStaff };
+}
+
+async function parseEmailFile(client: MongoClient) {
+	const data = fs.readFileSync('./resources/emails.csv');
+	const emails = data.toString().split('\n').map(email => email.trim());
+	const [firstLine, courseId] = emails[0].split(',').map(str => str.trim());
+	const course = await client.db(BOT.NAME).collection(DB.COURSES).findOne({ name: courseId });
+	emails[0] = firstLine;
+	return { emails, course };
+}
+
+function determineStaffStatus(firstEmail: string) {
+	if (firstEmail.toLowerCase() === 'staff') return true;
+	if (firstEmail.toLowerCase() === 'student') return false;
+	console.error('First value must be STAFF or STUDENT');
+	process.exit();
+}
+
+function isValidEmail(email: string): boolean {
+	return email.endsWith('@udel.edu');
+}
+
+function logInvalidEmail(email: string) {
+	if (email) console.error(`${email} is not a valid udel email.`);
+}
+
+function generateHash(email: string): string {
+	return crypto.createHash('sha256').update(email).digest('base64').toString();
+}
+
+function createNewUser(email: string, hash: string, isStaff: boolean, course: Course | undefined): SageUser {
+	const newUser: SageUser = {
+		email,
+		hash,
+		isStaff,
+		discordId: '',
+		count: 0,
+		levelExp: FIRST_LEVEL,
+		curExp: FIRST_LEVEL,
+		level: 1,
+		levelPings: true,
+		isVerified: false,
+		pii: false,
+		roles: [],
+		courses: []
+	};
+
+	if (course) {
+		if (isStaff) {
+			newUser.roles.push(course.roles.staff);
+		} else {
+			newUser.roles.push(course.roles.student);
+			newUser.courses.push(course.name);
+		}
+	}
+
+	if (isStaff) newUser.roles.push(ROLES.STAFF);
+	newUser.roles.push(ROLES.LEVEL_ONE);
+
+	return newUser;
+}
+
+async function processExistingUser(entry: SageUser | null, isStaff: boolean, newUser: SageUser, db: any, email: string): Promise<boolean> {
+	if (entry) { // User already onboarded
+		if (isStaff && entry.isVerified) { // Staff is already verified
+			await db.updateOne(entry, { $set: { isStaff: true } });
+			console.log(`${email} was already in verified. Add staff roles manually. Discord ID ${entry.discordId}`);
+		} else if (isStaff && !entry.isVerified) {
+			await db.updateOne(entry, { $set: { ...newUser } });
+		}
+		return true;
+	}
+	return false;
+}
+
+function logNewUser(email: string, isStaff: boolean, hash: string) {
+	console.log(`${email.padEnd(18)} | ${isStaff.toString().padEnd(5)} | ${hash}`);
+}
 
 async function sendEmail(email: string, hash: string): Promise<void> {
 	mailer.sendMail({
@@ -149,9 +190,7 @@ async function sendEmail(email: string, hash: string): Promise<void> {
 }
 
 function sleep(ms: number) {
-	return new Promise((resolve) => {
-		setTimeout(resolve, ms);
-	});
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 main();
