@@ -10,7 +10,6 @@ export default class extends Command {
 	permissions: ApplicationCommandPermissions[] = BOTMASTER_PERMS;
 
 	async run(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean> | void> {
-		
 		return interaction.reply('To be implemented again soon...');
 	}
 
