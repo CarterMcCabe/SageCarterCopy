@@ -53,7 +53,6 @@ export default class extends Command {
 			});
 
 		interaction.editReply('I\'ve reset all levels in the guild.');
-		return;
 	}
 
 }
