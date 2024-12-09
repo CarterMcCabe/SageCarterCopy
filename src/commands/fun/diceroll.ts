@@ -38,49 +38,52 @@ export default class extends Command {
 	]
 
 	run(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean> | void> {
-		let min = interaction.options.getNumber('minimum');
-		let max = interaction.options.getNumber('maximum');
+		const minInput = interaction.options.getNumber('minimum');
+		const maxInput = interaction.options.getNumber('maximum');
 		const numRolls = interaction.options.getNumber('numdice') || DEFAULT_ROLLS;
 		const keepHighest = interaction.options.getNumber('keephighest') || numRolls;
 
-		if (!min) {
-			[min, max] = [DEFAULT_RANGE[0], max || DEFAULT_RANGE[1]];
-		} else if (!max && min) {
-			return interaction.reply({ embeds: [generateErrorEmbed('If you provide a minimum, you must also provide a maximum.')], ephemeral: true });
-		} else if (max < min) {
-			if (max < min) {
-				return interaction.reply({ embeds: [generateErrorEmbed('Your maximum must be greater than your minimum.')], ephemeral: true });
-			} else if (!Number.isInteger(min) || !Number.isInteger(max)) {
-				return interaction.reply({ embeds: [generateErrorEmbed('The values you entered were not whole numbers. Remember that this command works with integers only.')], ephemeral: true });
-			}
-			
+		// Determine minimum and maximum values
+		const min = minInput ?? DEFAULT_RANGE[0];
+		const max = maxInput ?? (minInput ? undefined : DEFAULT_RANGE[1]);
+
+		// Helper to reply with an error
+		const replyWithError = (message: string) => interaction.reply({ embeds: [generateErrorEmbed(message)], ephemeral: true });
+
+		// Validate input
+		if (min === undefined || max === undefined) {
+			return replyWithError('If you provide a minimum, you must also provide a maximum.');
+		}
+		if (max < min) {
+			return replyWithError('Your maximum must be greater than your minimum.');
+		}
+		if (!Number.isInteger(min) || !Number.isInteger(max)) {
+			return replyWithError('The values you entered were not whole numbers. Remember that this command works with integers only.');
+		}
 		if (numRolls < 1 || numRolls > 10 || !Number.isInteger(numRolls)) {
-    		return interaction.reply({ embeds: [generateErrorEmbed('You can only roll between 1 and 10 whole dice.')], ephemeral: true });
-				} else if (!Number.isInteger(keepHighest) || keepHighest <= 0) {
-    		return interaction.reply({ embeds: [generateErrorEmbed('The number of dice you keep must be a **positive integer**.')], ephemeral: true });
-					} else if (keepHighest > numRolls) {
-    		return interaction.reply({ embeds: [generateErrorEmbed('The number of dice you keep must be lower than the number of dice you roll.')], ephemeral: true });
-				}
+			return replyWithError('You can only roll between 1 and 10 whole dice.');
+		}
+		if (!Number.isInteger(keepHighest) || keepHighest <= 0) {
+			return replyWithError('The number of dice you keep must be a **positive integer**.');
+		}
+		if (keepHighest > numRolls) {
+			return replyWithError('The number of dice you keep must be lower than the number of dice you roll.');
 		}
 
-
-		const results = [];
-		for (let i = 0; i < numRolls; i++) {
-			results.push(Math.floor((Math.random() * (max - min + 1)) + min));
-		}
+		// Generate dice rolls
+		const results = Array.from({ length: numRolls }, () => Math.floor((Math.random() * (max - min + 1)) + min));
 
 		const sorted = [...results].sort((a, b) => b - a);
-		const total: number = sorted.splice(0, keepHighest).reduce((prev, cur) => prev + cur, 0);
+		const total = sorted.splice(0, keepHighest).reduce((prev, cur) => prev + cur, 0);
 
+		// Prepare embed fields
 		const totalText = keepHighest === 1
 			? `Your total roll is **${total}**.`
 			: `The total of the ${keepHighest} highest dice is **${total}**`;
-
-		const nums = results.join(', ');
 		const embedFields = [
 			{
 				name: `Roll${results.length === 1 ? '' : 's'}`,
-				value: `Your random number${results.length === 1 ? ' is' : 's are'} ${nums}.`,
+				value: `Your random number${results.length === 1 ? ' is' : 's are'} ${results.join(', ')}.`,
 				inline: true
 			},
 			{
@@ -89,11 +92,13 @@ export default class extends Command {
 			}
 		];
 
+		// Build and send the embed
 		const responseEmbed = new EmbedBuilder()
 			.setColor(Math.floor(Math.random() * 16777215))
 			.setTitle('Random Integer Generator')
 			.setFields(embedFields)
 			.setFooter({ text: `${interaction.user.username} rolled ${numRolls} dice ranging from ${min} to ${max}` });
+
 		return interaction.reply({ embeds: [responseEmbed] });
 	}
 
